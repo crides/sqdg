@@ -8,14 +8,13 @@ def add_stem(obj, off, thumb=False):
     stem_h = 3.5
     stem = (
         cq.Workplane().box(1.2, 3, stem_h, (False, True, False)).faces("<X or |Z").shell(-0.8)
-        .translate((stem_dist / 2, 0, -stem_h + 1))
+        .translate((stem_dist / 2, 0, -stem_h))
     )
     stems = stem.union(stem.rotate(*rot_axis_z, 180))
     if thumb:
         stems = stems.rotate(*rot_axis_z, 90)
     return (
-        obj.edges("<Z").toPending()
-        .offset2D(-1, forConstruction=True).toPending().cutBlind(1)
+        obj.union(obj.wires("<Z").toPending().extrude(-1, combine=False).faces("|Z").shell(-1))
         .union(stems.translate((off, 0, 0)))
     )
 
@@ -62,7 +61,7 @@ def export_color(obj, name):
 chocmin_x, chocmin_y, chocmin_nnx = 18, 13.5, 14.5
 chocmin_nx = (chocmin_x + chocmin_nnx) / 2
 chocmin_off = chocmin_nx / 2 - (chocmin_nx - chocmin_x / 2)
-params = {"gap": 0.5, "cr": 50, "sh": 2.5, "ang": 45}
+params = {"gap": 0.75, "cr": 75, "sh": 2.5, "ang": 40}
 
 middle = col(chocmin_x, chocmin_y, **params)
 index = col(chocmin_nx, chocmin_y, off=-chocmin_off, **params).translate((-chocmin_nx / 2 - chocmin_x / 2, 0, 0))
