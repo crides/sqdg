@@ -1,9 +1,10 @@
-from sqdg import Config, col, thumb_col, export_color
+from sqdg import Config,col, thumb_col, export_color
 
-chocmin_x, chocmin_y, chocmin_nnx = 18, 13.5, 14.5
+chocmin_x, chocmin_y, chocmin_nnx = 18, 15, 15
 chocmin_nx = (chocmin_x + chocmin_nnx) / 2
 chocmin_off = chocmin_nx / 2 - (chocmin_nx - chocmin_x / 2)
-c = Config(gap=0.75, cr=75, sh=2.5, ang=35)
+gap = 0.5
+c = Config(gap=gap, ch=1, cr=45, ang=30, eh=1.2, r=53)
 
 F = col(c + Config(chocmin_x, chocmin_y))
 R = col(c + Config(chocmin_nx, chocmin_y, off=-chocmin_off))
@@ -18,4 +19,4 @@ whole = left + right
 if "show_object" in locals():
     show_object(whole.thing, "whole")
 
-export_color(whole, "chocmini-min-whole")
+export_color(whole, "chocmin-whole")
