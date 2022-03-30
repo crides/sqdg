@@ -18,4 +18,4 @@ whole = left + right
 if "show_object" in locals():
     show_object(whole.thing, "whole")
 
-export_color(whole, "chocmini-min-whole")
+export_color(whole.thing, "chocmini-min-whole")
