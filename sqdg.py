@@ -11,11 +11,13 @@ class Config:
     r: float = 60               # Convex surface radius
     eh: float = 2               # Top/Bottom edge max height
     gap: float = 1              # Gap between cap outlines
-    cr: float = 60              # Radius of concave/cut sphere; only for alphas
+    cr: float = 60              # Radius of concave/cut shape; only for alphas
+    crh: Optional[float] = None # Horizontal radius of cut shape
     ch: float = 1.5             # Minimum height in the center; only for alphas
     sh: Optional[float] = None  # Height at which to be sliced, measured from top of stem; only for alphas
     ang: float = 30             # Angle of tangent of convex surface hits the top/bottom edge
-    off: float = 0              # X-offset of cut sphere from the center of stem
+    off: float = 0              # X-offset of cut sphere from the center of cap
+    soff: Optional[float] = None# X-offset of center of stem from the center of cap
     sl: float = 3.5             # Stem length
 
     def __add__(self, c: 'Config'):
@@ -60,9 +62,8 @@ def add_stem(obj, c: Config, thumb=False):
     if thumb:
         stems = stems.rotate(*rot_axis_z, 90)
     return (
-        # obj.faces("<Z").workplane().sketch().face(obj.wires("<Z").val()).wires().offset(-1, mode="s").finalize().extrude(1)
         obj.union(obj.wires("<Z").toPending().extrude(-1, combine=False).faces("|Z").shell(-1))
-        .union(stems.translate((c.off, 0, 0)))
+        .union(stems.translate((c.soff if c.soff != None else c.off, 0, 0)))
     )
 
 def base(c: Config, pos: str):
@@ -82,14 +83,23 @@ def base(c: Config, pos: str):
         c,
     )
 
+def ellipsoid(x, y):
+    return (cq.Workplane().sketch().ellipse(x, y).push([(0, y)]).rect(2 * x, 2 * y, mode="s").finalize()
+            .revolve(360, axisEnd=(1, 0)))
+
 def col(c: Config):
     b = lambda p: base(c, p)
+    cut_shape = cq.Workplane().transformed(offset=(c.off, 0, c.cr + c.ch))
+    if c.crh != None:
+        cut_shape = cut_shape.sketch().ellipse(c.crh, c.cr).push([(0, c.cr)]).rect(2 * c.crh, 2 * c.cr, mode="s").finalize().revolve(360, axisEnd=(1, 0))
+    else:
+        cut_shape = cut_shape.sphere(c.cr)
     col = (
         b("mid").union(b("top").translate((0, c.y))).union(b("bot").translate((0, -c.y)))
-        .cut(cq.Workplane().transformed(offset=(c.off, 0, c.cr + c.ch)).sphere(c.cr))
+        .cut(cut_shape)
     )
     if c.sh != None:
-        col = col.workplane(c.sh).split(keepBottom=True)
+        col = col.transformed(offset=(0, 0, c.sh)).split(keepBottom=True)
     return Boxed(col, c.x, c.y * 3)
 
 def thumb(c: Config):
