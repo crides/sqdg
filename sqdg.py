@@ -19,6 +19,8 @@ class Config:
     off: float = 0              # X-offset of cut sphere from the center of cap
     soff: Optional[float] = None# X-offset of center of stem from the center of cap
     sl: float = 3.5             # Stem length
+    voff: Optional[float] = None# Y-offset for aligning the edge of thumb keys
+    tuni: bool = False          # Uniform surface for thumbs
 
     def __add__(self, c: 'Config'):
         default = vars(Config())
@@ -45,6 +47,9 @@ class Boxed:
         total_x, total_y = max(self.x, other.x), self.y + other.y
         return Boxed(self.thing.translate((0, -self.y / 2, 0))
                      .union(other.thing.translate((0, other.y / 2, 0))), total_x, total_y)
+
+    def move(self, x, y):
+        return Boxed(self.thing.translate((x, y, 0)), self.x, self.y)
 
     def unwrap(self):
         return self.thing
@@ -83,17 +88,14 @@ def base(c: Config, pos: str):
         c,
     )
 
-def ellipsoid(x, y):
-    return (cq.Workplane().sketch().ellipse(x, y).push([(0, y)]).rect(2 * x, 2 * y, mode="s").finalize()
-            .revolve(360, axisEnd=(1, 0)))
+def ellipsoid(base, y, x=None):
+    if x != None:
+        return base.sketch().ellipse(x, y).push([(0, y)]).rect(2 * x, 2 * y, mode="s").finalize().revolve(360, axisEnd=(1, 0))
+    return base.sphere(y)
 
 def col(c: Config):
     b = lambda p: base(c, p)
-    cut_shape = cq.Workplane().transformed(offset=(c.off, 0, c.cr + c.ch))
-    if c.crh != None:
-        cut_shape = cut_shape.sketch().ellipse(c.crh, c.cr).push([(0, c.cr)]).rect(2 * c.crh, 2 * c.cr, mode="s").finalize().revolve(360, axisEnd=(1, 0))
-    else:
-        cut_shape = cut_shape.sphere(c.cr)
+    cut_shape = ellipsoid(cq.Workplane().transformed(offset=(c.off, 0, c.cr + c.ch)), c.cr, c.crh)
     col = (
         b("mid").union(b("top").translate((0, c.y))).union(b("bot").translate((0, -c.y)))
         .cut(cut_shape)
@@ -102,20 +104,35 @@ def col(c: Config):
         col = col.transformed(offset=(0, 0, c.sh)).split(keepBottom=True)
     return Boxed(col, c.x, c.y * 3)
 
-def thumb(c: Config):
+def thumb(c: Config, pos: str):
+    x_mul = 0 if not c.tuni else -1 if pos == "top" else 0 if pos == "mid" else 1
+    voff = c.voff if c.voff != None else 0
+    cut = cq.Workplane().transformed(offset=(x_mul * c.y,
+                                             x_mul * voff + c.r * math.sin(math.radians(c.ang)) - c.x / 2,
+                                             c.eh - c.r * math.cos(math.radians(c.ang))))
+    if c.voff != None:
+        if not c.tuni:
+            cut = cut.transformed((0, 0, -math.degrees(-math.atan2(c.voff, c.y))))
+            # cut = cut.transformed((0, 0, 13.62093739938678))
+        cut = ellipsoid(cut, c.r, 100)
+    else:
+        cut = cut.sphere(c.r)
     return add_stem(
         cq.Workplane().box(c.y - c.gap, c.x - c.gap, 10, (True, True, False))
         .edges("|Z").chamfer(1)
-        .intersect(cq.Workplane().transformed(offset=(0,
-                                                      c.r * math.sin(math.radians(c.ang)) - c.x / 2,
-                                                      c.eh - c.r * math.cos(math.radians(c.ang)))).sphere(c.r)),
+        .intersect(cut),
          c, thumb=True
     )
 
-def thumb_col(c: Config):
-    T = thumb(c)
-    return Boxed(T.union(T.translate((-c.y, 0, 0))).union(T.translate((c.y, 0, 0))).rotate(*rot_axis_z, -90),
-                 c.x, c.y * 3)
+def thumb_col(c: Config, rotated=True, offset=False):
+    if rotated:
+        offset = False
+    T = lambda p: thumb(c, p)
+    voff = c.voff if c.voff != None and offset else 0
+    thumbs = T("mid").union(T("bot").translate((-c.y, -voff, 0))).union(T("top").translate((c.y, voff, 0)))
+    if rotated:
+        return Boxed(thumbs.rotate(*rot_axis_z, -90), c.x, c.y * 3)
+    return Boxed(thumbs, c.y * 3, c.x)
 
 def export_color(obj, name):
     cq.Assembly(obj, color=cq.Color("gray")).save(name + ".step")
